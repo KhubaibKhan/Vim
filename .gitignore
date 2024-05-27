@@ -12,7 +12,7 @@ causal-conv1d/causal_conv1d_cuda.cpython-310-x86_64-linux-gnu.so
 mamba-1p1p1/build/
 mamba-1p1p1/mamba_ssm.egg-info/
 mamba-1p1p1/selective_scan_cuda.cpython-310-x86_64-linux-gnu.so
-./vim/__pycache__/*
-./vim/mlruns/*
-./vim/.ipynb_checkpoints/*
-./vim/output/*
+vim/__pycache__/*
+vim/mlruns/*
+vim/.ipynb_checkpoints/*
+vim/output/*
