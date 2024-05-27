@@ -1,3 +1,4 @@
+# %%
 # Copyright (c) 2015-present, Facebook, Inc.
 # All rights reserved.
 import argparse
@@ -9,6 +10,7 @@ import torch.backends.cudnn as cudnn
 import json
 
 from pathlib import Path
+import datasets as dts
 
 from timm.data import Mixup
 from timm.models import create_model
@@ -17,7 +19,7 @@ from timm.scheduler import create_scheduler
 from timm.optim import create_optimizer
 from timm.utils import NativeScaler, get_state_dict, ModelEma
 
-from datasets import build_dataset
+from datasets_custom import build_dataset
 from engine import train_one_epoch, evaluate
 from losses import DistillationLoss
 from samplers import RASampler
@@ -44,6 +46,8 @@ def get_args_parser():
     parser.add_argument('--model', default='deit_base_patch16_224', type=str, metavar='MODEL',
                         help='Name of model to train')
     parser.add_argument('--input-size', default=224, type=int, help='images input size')
+
+    parser.add_argument("--resume_training", default='', type=str, help="resume training from checkpoint")
 
     parser.add_argument('--drop', type=float, default=0.0, metavar='PCT',
                         help='Dropout rate (default: 0.)')
@@ -222,8 +226,6 @@ def get_args_parser():
 def main(args):
     utils.init_distributed_mode(args)
 
-    print(args)
-
     if args.distillation_type != 'none' and args.finetune and not args.eval:
         raise NotImplementedError("Finetuning with distillation not yet supported")
 
@@ -271,13 +273,26 @@ def main(args):
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
         sampler_val = torch.utils.data.SequentialSampler(dataset_val)
 
+    # check if dataset is loaded from huggingface
+    if not isinstance(dataset_train, torch.utils.data.Dataset):
+        def custom_collate_fn(batch):
+            images = torch.stack([item['pixel_values'] for item in batch])
+            # Assuming there's a 'label' field
+            labels = torch.tensor([item['label'] for item in batch])
+            return images, labels
+        
+    else:
+        custom_collate_fn = None
+
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, sampler=sampler_train,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
         drop_last=True,
+        collate_fn=custom_collate_fn
     )
+
     if args.ThreeAugment:
         data_loader_train.dataset.transform = new_data_aug_generator(args)
 
@@ -286,7 +301,8 @@ def main(args):
         batch_size=int(1.5 * args.batch_size),
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
-        drop_last=False
+        drop_last=False,
+        collate_fn=custom_collate_fn
     )
 
     mixup_fn = None
@@ -307,6 +323,12 @@ def main(args):
         drop_block_rate=None,
         img_size=args.input_size
     )
+
+    if args.resume_training:
+        checkpoint = torch.load(args.resume_training, map_location='cpu')
+        model.load_state_dict(checkpoint['model'])
+        print(f"Resuming training from {args.resume_training}")
+
 
                     
     if args.finetune:
@@ -389,6 +411,8 @@ def main(args):
         linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
         args.lr = linear_scaled_lr
     optimizer = create_optimizer(args, model_without_ddp)
+    if args.resume_training:
+        optimizer.load_state_dict(checkpoint['optimizer'])
     
     # amp about
     amp_autocast = suppress
@@ -469,6 +493,8 @@ def main(args):
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     max_accuracy = 0.0
+
+    # %%
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
@@ -542,3 +568,5 @@ if __name__ == '__main__':
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
+
+# %%

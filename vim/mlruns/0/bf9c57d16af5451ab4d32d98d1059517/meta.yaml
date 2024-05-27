@@ -1,0 +1,15 @@
+artifact_uri: file:///data_hdd1/users/khubaib/mamba_unders/Vim/vim/mlruns/0/bf9c57d16af5451ab4d32d98d1059517/artifacts
+end_time: 1716184211512
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: bf9c57d16af5451ab4d32d98d1059517
+run_name: vim_tiny_patch16_224_bimambav2_final_pool_mean_abs_pos_embed_with_midclstok_div2
+run_uuid: bf9c57d16af5451ab4d32d98d1059517
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1716184206828
+status: 3
+tags: []
+user_id: user01
